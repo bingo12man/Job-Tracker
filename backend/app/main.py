@@ -356,6 +356,68 @@ async def scan_all_companies(
 
         "results": results,
     }
+@app.post("/companies/bulk-seed")
+def bulk_seed_companies(
+    db: Session = Depends(get_db),
+):
+    added = 0
+    skipped = 0
+    updated = 0
+
+    for item in COMPANY_CATALOG:
+        existing = (
+            db.query(models.Company)
+            .filter(models.Company.name == item["name"])
+            .first()
+        )
+
+        if existing:
+            changed = False
+
+            if existing.ats_type != item["ats_type"]:
+                existing.ats_type = item["ats_type"]
+                changed = True
+
+            if existing.board_token != item["board_token"]:
+                existing.board_token = item["board_token"]
+                changed = True
+
+            if existing.career_url != item["career_url"]:
+                existing.career_url = item["career_url"]
+                changed = True
+
+            if existing.enabled != item.get("enabled", True):
+                existing.enabled = item.get("enabled", True)
+                changed = True
+
+            if changed:
+                updated += 1
+            else:
+                skipped += 1
+
+            continue
+
+        company = models.Company(
+            name=item["name"],
+            career_url=item["career_url"],
+            ats_type=item["ats_type"],
+            board_token=item["board_token"],
+            enabled=item.get("enabled", True),
+        )
+
+        db.add(company)
+        added += 1
+
+    db.commit()
+
+    return {
+        "added": added,
+        "updated": updated,
+        "skipped": skipped,
+        "catalog_size": len(COMPANY_CATALOG),
+    }
+
+
 
 @app.put("/companies/{company_id}")
 def update_company(
@@ -810,63 +872,3 @@ def delete_application(
         "application_id": application_id,
     }
     
-@app.post("/companies/bulk-seed")
-def bulk_seed_companies(
-    db: Session = Depends(get_db),
-):
-    added = 0
-    skipped = 0
-    updated = 0
-
-    for item in COMPANY_CATALOG:
-        existing = (
-            db.query(models.Company)
-            .filter(models.Company.name == item["name"])
-            .first()
-        )
-
-        if existing:
-            changed = False
-
-            if existing.ats_type != item["ats_type"]:
-                existing.ats_type = item["ats_type"]
-                changed = True
-
-            if existing.board_token != item["board_token"]:
-                existing.board_token = item["board_token"]
-                changed = True
-
-            if existing.career_url != item["career_url"]:
-                existing.career_url = item["career_url"]
-                changed = True
-
-            if existing.enabled != item.get("enabled", True):
-                existing.enabled = item.get("enabled", True)
-                changed = True
-
-            if changed:
-                updated += 1
-            else:
-                skipped += 1
-
-            continue
-
-        company = models.Company(
-            name=item["name"],
-            career_url=item["career_url"],
-            ats_type=item["ats_type"],
-            board_token=item["board_token"],
-            enabled=item.get("enabled", True),
-        )
-
-        db.add(company)
-        added += 1
-
-    db.commit()
-
-    return {
-        "added": added,
-        "updated": updated,
-        "skipped": skipped,
-        "catalog_size": len(COMPANY_CATALOG),
-    }
