@@ -313,9 +313,7 @@ async def scan_all_companies(
     results = []
 
     for company in companies:
-
         try:
-
             # =============================
             # GREENHOUSE
             # =============================
@@ -406,7 +404,6 @@ async def scan_all_companies(
             # =============================
 
             else:
-
                 total_skipped += 1
 
                 results.append({
@@ -422,7 +419,7 @@ async def scan_all_companies(
                 continue
 
             # =============================
-            # SUCCESS COUNTERS
+            # SUCCESS
             # =============================
 
             new_jobs = result.get(
@@ -454,18 +451,31 @@ async def scan_all_companies(
             })
 
         except Exception as e:
-
             total_errors += 1
+
+            error_message = str(e)
 
             company.last_scanned_at = (
                 datetime.utcnow()
             )
 
+            disabled = False
+
+            # Disable clearly invalid/stale ATS mappings.
+            # Do NOT disable for network/timeouts.
+            if "was not found" in error_message.lower():
+                company.enabled = False
+                disabled = True
+
             results.append({
                 "company": company.name,
                 "ats_type": company.ats_type,
-                "status": "error",
-                "error": str(e),
+                "status": (
+                    "disabled"
+                    if disabled
+                    else "error"
+                ),
+                "error": error_message,
             })
 
     db.commit()
@@ -491,7 +501,6 @@ async def scan_all_companies(
         "matching_jobs": total_matching_jobs,
 
         "duration_seconds": duration_seconds,
-
         "results": results,
     }
 
@@ -505,7 +514,6 @@ async def bulk_seed_companies(
     )
 
     added = 0
-    updated = 0
     skipped = 0
     duplicates_removed = 0
 
@@ -525,7 +533,7 @@ async def bulk_seed_companies(
         name = item["name"].strip()
         normalized_name = name.lower()
 
-        # Prevent duplicates inside the incoming catalog
+        # Duplicate inside incoming catalog
         if normalized_name in seen_catalog_names:
             duplicates_removed += 1
             continue
@@ -538,45 +546,11 @@ async def bulk_seed_companies(
             normalized_name
         )
 
+        # IMPORTANT:
+        # Never overwrite a company
+        # already configured in Neon.
         if existing:
-            changed = False
-
-            if (
-                existing.ats_type
-                != item["ats_type"]
-            ):
-                existing.ats_type = (
-                    item["ats_type"]
-                )
-                changed = True
-
-            if (
-                existing.board_token
-                != item["board_token"]
-            ):
-                existing.board_token = (
-                    item["board_token"]
-                )
-                changed = True
-
-            if (
-                existing.career_url
-                != item["career_url"]
-            ):
-                existing.career_url = (
-                    item["career_url"]
-                )
-                changed = True
-
-            if not existing.enabled:
-                existing.enabled = True
-                changed = True
-
-            if changed:
-                updated += 1
-            else:
-                skipped += 1
-
+            skipped += 1
             continue
 
         company = models.Company(
@@ -593,9 +567,7 @@ async def bulk_seed_companies(
 
         db.add(company)
 
-        # IMPORTANT:
-        # immediately register pending company
-        # so another same-name item won't be added
+        # Prevent duplicate pending inserts
         company_by_name[
             normalized_name
         ] = company
@@ -611,7 +583,6 @@ async def bulk_seed_companies(
 
     return {
         "added": added,
-        "updated": updated,
         "skipped": skipped,
         "duplicates_removed":
             duplicates_removed,
@@ -621,7 +592,6 @@ async def bulk_seed_companies(
             .count()
         ),
     }
-
 
 @app.put("/companies/{company_id}")
 def update_company(
