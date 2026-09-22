@@ -31,7 +31,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import time
 models.Base.metadata.create_all(bind=engine)
 import os
-from .company_catalog import COMPANY_CATALOG
+
+from .company_catalog_loader import (
+    load_company_catalog,
+)
+
 
 FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
@@ -356,38 +360,65 @@ async def scan_all_companies(
 
         "results": results,
     }
+
+
 @app.post("/companies/bulk-seed")
-def bulk_seed_companies(
+async def bulk_seed_companies(
+    limit: int = 600,
     db: Session = Depends(get_db),
 ):
-    added = 0
-    skipped = 0
-    updated = 0
+    catalog = await load_company_catalog(
+        limit=limit
+    )
 
-    for item in COMPANY_CATALOG:
+    added = 0
+    updated = 0
+    skipped = 0
+
+    for item in catalog:
+
         existing = (
             db.query(models.Company)
-            .filter(models.Company.name == item["name"])
+            .filter(
+                models.Company.name
+                == item["name"]
+            )
             .first()
         )
 
         if existing:
+
             changed = False
 
-            if existing.ats_type != item["ats_type"]:
-                existing.ats_type = item["ats_type"]
+            if (
+                existing.ats_type
+                != item["ats_type"]
+            ):
+                existing.ats_type = (
+                    item["ats_type"]
+                )
                 changed = True
 
-            if existing.board_token != item["board_token"]:
-                existing.board_token = item["board_token"]
+            if (
+                existing.board_token
+                != item["board_token"]
+            ):
+                existing.board_token = (
+                    item["board_token"]
+                )
                 changed = True
 
-            if existing.career_url != item["career_url"]:
-                existing.career_url = item["career_url"]
+            if (
+                existing.career_url
+                != item["career_url"]
+            ):
+                existing.career_url = (
+                    item["career_url"]
+                )
                 changed = True
 
-            if existing.enabled != item.get("enabled", True):
-                existing.enabled = item.get("enabled", True)
+            if not existing.enabled:
+                existing.enabled = True
                 changed = True
 
             if changed:
@@ -399,13 +430,18 @@ def bulk_seed_companies(
 
         company = models.Company(
             name=item["name"],
-            career_url=item["career_url"],
             ats_type=item["ats_type"],
-            board_token=item["board_token"],
-            enabled=item.get("enabled", True),
+            board_token=item[
+                "board_token"
+            ],
+            career_url=item[
+                "career_url"
+            ],
+            enabled=True,
         )
 
         db.add(company)
+
         added += 1
 
     db.commit()
@@ -414,11 +450,14 @@ def bulk_seed_companies(
         "added": added,
         "updated": updated,
         "skipped": skipped,
-        "catalog_size": len(COMPANY_CATALOG),
+        "catalog_size": len(
+            catalog
+        ),
+        "database_total": (
+            db.query(models.Company)
+            .count()
+        ),
     }
-
-
-
 @app.put("/companies/{company_id}")
 def update_company(
     company_id: int,
