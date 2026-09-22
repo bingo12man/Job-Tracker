@@ -10,9 +10,24 @@ jobs:
   scan:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        batch:
+          [
+            0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9,
+            10, 11, 12, 13, 14,
+            15, 16, 17, 18, 19
+          ]
+
     steps:
-      - name: Trigger Job Radar scan
+      - name: Scan company batch
         run: |
-          curl --fail --show-error --silent \
-            -X POST \
-            "${{ secrets.JOB_RADAR_SCAN_URL }}"
+          curl --fail \
+               --show-error \
+               --silent \
+               --max-time 600 \
+               -X POST \
+               "${{ secrets.JOB_RADAR_SCAN_URL }}?batch=${{ matrix.batch }}&batch_size=25"
