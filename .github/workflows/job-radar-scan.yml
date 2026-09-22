@@ -2,7 +2,7 @@ name: Job Radar Scheduled Scan
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/30 * * * *"
 
   workflow_dispatch:
 
@@ -32,6 +32,6 @@ jobs:
         run: |
           curl --fail-with-body \
                --show-error \
-               --max-time 360 \
+               --max-time 600 \
                -X POST \
                "${{ secrets.JOB_RADAR_SCAN_URL }}?batch=${{ matrix.batch }}&batch_size=10"
