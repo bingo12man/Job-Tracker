@@ -12,15 +12,19 @@ jobs:
 
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 2
 
       matrix:
         batch:
           [
-            0, 1, 2, 3,
-            4, 5, 6, 7,
-            8, 9, 10, 11,
-            12, 13, 14, 15
+            0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9,
+            10, 11, 12, 13, 14,
+            15, 16, 17, 18, 19,
+            20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29,
+            30, 31, 32, 33, 34,
+            35, 36, 37, 38
           ]
 
     steps:
@@ -28,6 +32,6 @@ jobs:
         run: |
           curl --fail-with-body \
                --show-error \
-               --max-time 600 \
+               --max-time 360 \
                -X POST \
-               "${{ secrets.JOB_RADAR_SCAN_URL }}?batch=${{ matrix.batch }}&batch_size=25"
+               "${{ secrets.JOB_RADAR_SCAN_URL }}?batch=${{ matrix.batch }}&batch_size=10"
