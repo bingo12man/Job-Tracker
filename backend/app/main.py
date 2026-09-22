@@ -356,22 +356,23 @@ async def scan_all_companies(
     )
 
     return {
-        "batch": batch,
-        "batch_size": batch_size,
-        "total_companies": total_companies,
-        "companies_in_batch": len(companies),
+    "batch": batch,
+    "batch_size": batch_size,
+    "total_companies": total_companies,
+    "companies_in_batch": len(companies),
 
-        "companies_scanned_successfully": total_success,
-        "companies_skipped": total_skipped,
-        "companies_failed": total_errors,
+    "companies_scanned": total_success,
+    "companies_scanned_successfully": total_success,
+    "companies_skipped": total_skipped,
+    "companies_failed": total_errors,
 
-        "new_jobs": total_new_jobs,
-        "new_matches": total_matching_jobs,
+    "new_jobs": total_new_jobs,
+    "new_matches": total_matching_jobs,
+    "matching_jobs": total_matching_jobs,
 
-        "duration_seconds": duration_seconds,
-
-        "results": results,
-    }
+    "duration_seconds": duration_seconds,
+    "results": results,
+}
 
 
 @app.post("/companies/bulk-seed")
