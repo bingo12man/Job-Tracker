@@ -277,6 +277,18 @@ async def scan_all_companies(
 ):
     start_time = time.perf_counter()
 
+    if batch < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="batch must be 0 or greater",
+        )
+
+    if batch_size < 1 or batch_size > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="batch_size must be between 1 and 50",
+        )
+
     query = (
         db.query(models.Company)
         .filter(models.Company.enabled == True)
