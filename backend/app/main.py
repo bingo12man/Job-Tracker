@@ -309,71 +309,191 @@ async def scan_all_companies(
     total_errors = 0
     total_new_jobs = 0
     total_matching_jobs = 0
+
     results = []
 
     for company in companies:
+
         try:
-            result = await scan_company(
-                db,
-                company
-            )
 
-            results.append(result)
+            # =============================
+            # GREENHOUSE
+            # =============================
 
-            if result.get("status") == "success":
-                total_success += 1
-            elif result.get("status") == "skipped":
-                total_skipped += 1
+            if company.ats_type == "greenhouse":
+
+                if not company.board_token:
+                    raise ValueError(
+                        "Missing Greenhouse board token"
+                    )
+
+                result = await scan_greenhouse_company(
+                    db=db,
+                    company_name=company.name,
+                    board_token=company.board_token,
+                )
+
+            # =============================
+            # LEVER
+            # =============================
+
+            elif company.ats_type == "lever":
+
+                if not company.board_token:
+                    raise ValueError(
+                        "Missing Lever company token"
+                    )
+
+                result = await scan_lever_company(
+                    db=db,
+                    company_name=company.name,
+                    company_token=company.board_token,
+                )
+
+            # =============================
+            # ASHBY
+            # =============================
+
+            elif company.ats_type == "ashby":
+
+                if not company.board_token:
+                    raise ValueError(
+                        "Missing Ashby board token"
+                    )
+
+                result = await scan_ashby_company(
+                    db=db,
+                    company_name=company.name,
+                    board_token=company.board_token,
+                )
+
+            # =============================
+            # SMARTRECRUITERS
+            # =============================
+
+            elif company.ats_type == "smartrecruiters":
+
+                if not company.board_token:
+                    raise ValueError(
+                        "Missing SmartRecruiters identifier"
+                    )
+
+                result = await scan_smartrecruiters_company(
+                    db=db,
+                    company_name=company.name,
+                    company_identifier=company.board_token,
+                )
+
+            # =============================
+            # WORKDAY
+            # =============================
+
+            elif company.ats_type == "workday":
+
+                if not company.career_url:
+                    raise ValueError(
+                        "Missing Workday career URL"
+                    )
+
+                result = await scan_workday_company(
+                    db=db,
+                    company_name=company.name,
+                    career_url=company.career_url,
+                )
+
+            # =============================
+            # UNSUPPORTED ATS
+            # =============================
+
             else:
-                total_errors += 1
 
-            total_new_jobs += result.get(
-                "new_jobs",
-                0
+                total_skipped += 1
+
+                results.append({
+                    "company": company.name,
+                    "ats_type": company.ats_type,
+                    "status": "skipped",
+                    "reason": (
+                        f"Unsupported ATS: "
+                        f"{company.ats_type}"
+                    ),
+                })
+
+                continue
+
+            # =============================
+            # SUCCESS COUNTERS
+            # =============================
+
+            new_jobs = result.get(
+                "total_new",
+                0,
             )
 
-            total_matching_jobs += result.get(
-                "matching_jobs",
-                0
+            matching_jobs = result.get(
+                "total_matches",
+                0,
             )
 
-        except Exception as e:
-            total_errors += 1
+            total_new_jobs += new_jobs
+            total_matching_jobs += matching_jobs
+            total_success += 1
+
+            company.last_scanned_at = (
+                datetime.utcnow()
+            )
+
+            company.initial_scan_complete = True
 
             results.append({
                 "company": company.name,
+                "ats_type": company.ats_type,
+                "status": "success",
+                "new_jobs": new_jobs,
+                "matching_jobs": matching_jobs,
+            })
+
+        except Exception as e:
+
+            total_errors += 1
+
+            company.last_scanned_at = (
+                datetime.utcnow()
+            )
+
+            results.append({
+                "company": company.name,
+                "ats_type": company.ats_type,
                 "status": "error",
                 "error": str(e),
             })
-
-        company.last_scanned_at = datetime.utcnow()
 
     db.commit()
 
     duration_seconds = round(
         time.perf_counter() - start_time,
-        2
+        2,
     )
 
     return {
-    "batch": batch,
-    "batch_size": batch_size,
-    "total_companies": total_companies,
-    "companies_in_batch": len(companies),
+        "batch": batch,
+        "batch_size": batch_size,
+        "total_companies": total_companies,
+        "companies_in_batch": len(companies),
 
-    "companies_scanned": total_success,
-    "companies_scanned_successfully": total_success,
-    "companies_skipped": total_skipped,
-    "companies_failed": total_errors,
+        "companies_scanned": total_success,
+        "companies_scanned_successfully": total_success,
+        "companies_skipped": total_skipped,
+        "companies_failed": total_errors,
 
-    "new_jobs": total_new_jobs,
-    "new_matches": total_matching_jobs,
-    "matching_jobs": total_matching_jobs,
+        "new_jobs": total_new_jobs,
+        "new_matches": total_matching_jobs,
+        "matching_jobs": total_matching_jobs,
 
-    "duration_seconds": duration_seconds,
-    "results": results,
-}
+        "duration_seconds": duration_seconds,
 
+        "results": results,
+    }
 
 @app.post("/companies/bulk-seed")
 async def bulk_seed_companies(
