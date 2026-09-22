@@ -374,20 +374,38 @@ async def bulk_seed_companies(
     added = 0
     updated = 0
     skipped = 0
+    duplicates_removed = 0
+
+    existing_companies = (
+        db.query(models.Company)
+        .all()
+    )
+
+    company_by_name = {
+        company.name.strip().lower(): company
+        for company in existing_companies
+    }
+
+    seen_catalog_names = set()
 
     for item in catalog:
+        name = item["name"].strip()
+        normalized_name = name.lower()
 
-        existing = (
-            db.query(models.Company)
-            .filter(
-                models.Company.name
-                == item["name"]
-            )
-            .first()
+        # Prevent duplicates inside the incoming catalog
+        if normalized_name in seen_catalog_names:
+            duplicates_removed += 1
+            continue
+
+        seen_catalog_names.add(
+            normalized_name
+        )
+
+        existing = company_by_name.get(
+            normalized_name
         )
 
         if existing:
-
             changed = False
 
             if (
@@ -429,7 +447,7 @@ async def bulk_seed_companies(
             continue
 
         company = models.Company(
-            name=item["name"],
+            name=name,
             ats_type=item["ats_type"],
             board_token=item[
                 "board_token"
@@ -442,22 +460,36 @@ async def bulk_seed_companies(
 
         db.add(company)
 
+        # IMPORTANT:
+        # immediately register pending company
+        # so another same-name item won't be added
+        company_by_name[
+            normalized_name
+        ] = company
+
         added += 1
 
-    db.commit()
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "added": added,
         "updated": updated,
         "skipped": skipped,
-        "catalog_size": len(
-            catalog
-        ),
+        "duplicates_removed":
+            duplicates_removed,
+        "catalog_size": len(catalog),
         "database_total": (
             db.query(models.Company)
             .count()
         ),
     }
+
+
 @app.put("/companies/{company_id}")
 def update_company(
     company_id: int,
