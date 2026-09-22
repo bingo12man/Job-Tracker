@@ -1,0 +1,28 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+backend/.env
+frontend/.env
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# SQLite local database
+backend/jobs.db
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Neon local metadata
+.neon/
+
+# macOS
+.DS_Store

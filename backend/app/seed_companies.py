@@ -1,0 +1,58 @@
+SEED_COMPANIES = [
+    {
+        "name": "Glean",
+        "career_url": "https://job-boards.greenhouse.io/gleanwork",
+        "ats_type": "greenhouse",
+        "board_token": "gleanwork",
+        "enabled": True,
+    },
+    {
+        "name": "Gushwork",
+        "career_url": "https://jobs.lever.co/gushwork",
+        "ats_type": "lever",
+        "board_token": "gushwork",
+        "enabled": True,
+    },
+    {
+        "name": "PostHog",
+        "career_url": "https://jobs.ashbyhq.com/posthog",
+        "ats_type": "ashby",
+        "board_token": "posthog",
+        "enabled": True,
+    },
+    {
+        "name": "Hevo Data",
+        "career_url": "https://jobs.lever.co/hevodata",
+        "ats_type": "lever",
+        "board_token": "hevodata",
+        "enabled": True,
+    },
+    {
+        "name": "Acceldata",
+        "career_url": "https://jobs.lever.co/acceldata",
+        "ats_type": "lever",
+        "board_token": "acceldata",
+        "enabled": True,
+    },
+    {
+        "name": "Neuron7",
+        "career_url": "https://jobs.lever.co/neuron7",
+        "ats_type": "lever",
+        "board_token": "neuron7",
+        "enabled": True,
+    },
+    {
+        "name": "100MS",
+        "career_url": "https://jobs.lever.co/100ms",
+        "ats_type": "lever",
+        "board_token": "100ms",
+        "enabled": True,
+    },
+    {
+        "name": "Bazaarvoice",
+        "career_url": "https://jobs.lever.co/bazaarvoice",
+        "ats_type": "lever",
+        "board_token": "bazaarvoice",
+        "enabled": True,
+    },
+]
