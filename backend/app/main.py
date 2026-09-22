@@ -289,9 +289,11 @@ async def scan_all_companies(
             detail="batch_size must be between 1 and 50",
         )
 
+    # IMPORTANT:
+    # Batch over ALL companies so offsets remain stable,
+    # even when some companies get disabled during scanning.
     query = (
         db.query(models.Company)
-        .filter(models.Company.enabled == True)
         .order_by(models.Company.id)
     )
 
@@ -307,13 +309,31 @@ async def scan_all_companies(
     total_success = 0
     total_skipped = 0
     total_errors = 0
+    total_disabled = 0
     total_new_jobs = 0
     total_matching_jobs = 0
 
     results = []
 
     for company in companies:
+
+        # Already-disabled company:
+        # keep its position in the batch,
+        # but don't scan it.
+        if not company.enabled:
+            total_skipped += 1
+
+            results.append({
+                "company": company.name,
+                "ats_type": company.ats_type,
+                "status": "skipped",
+                "reason": "Company disabled",
+            })
+
+            continue
+
         try:
+
             # =============================
             # GREENHOUSE
             # =============================
@@ -400,7 +420,7 @@ async def scan_all_companies(
                 )
 
             # =============================
-            # UNSUPPORTED ATS
+            # UNSUPPORTED
             # =============================
 
             else:
@@ -451,6 +471,7 @@ async def scan_all_companies(
             })
 
         except Exception as e:
+
             total_errors += 1
 
             error_message = str(e)
@@ -461,11 +482,13 @@ async def scan_all_companies(
 
             disabled = False
 
-            # Disable clearly invalid/stale ATS mappings.
-            # Do NOT disable for network/timeouts.
+            # Only permanently disable when the ATS
+            # explicitly says the board/company
+            # doesn't exist.
             if "was not found" in error_message.lower():
                 company.enabled = False
                 disabled = True
+                total_disabled += 1
 
             results.append({
                 "company": company.name,
@@ -478,23 +501,39 @@ async def scan_all_companies(
                 "error": error_message,
             })
 
-    db.commit()
+    try:
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
     duration_seconds = round(
         time.perf_counter() - start_time,
         2,
     )
 
+    enabled_companies = (
+        db.query(models.Company)
+        .filter(
+            models.Company.enabled == True
+        )
+        .count()
+    )
+
     return {
         "batch": batch,
         "batch_size": batch_size,
+
         "total_companies": total_companies,
+        "enabled_companies": enabled_companies,
         "companies_in_batch": len(companies),
 
         "companies_scanned": total_success,
         "companies_scanned_successfully": total_success,
         "companies_skipped": total_skipped,
         "companies_failed": total_errors,
+        "companies_disabled": total_disabled,
 
         "new_jobs": total_new_jobs,
         "new_matches": total_matching_jobs,
