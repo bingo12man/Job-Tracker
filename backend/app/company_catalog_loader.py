@@ -34,16 +34,19 @@ async def load_company_catalog(
     limit: int = 600,
 ):
     companies = []
-    seen = set()
+
+    # Deduplicate by company name
+    # because companies.name is UNIQUE in PostgreSQL
+    seen_names = set()
 
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=True,
     ) as client:
 
-        # ----------------------------------
+        # ==================================
         # 1. INDIA-FOCUSED CATALOG
-        # ----------------------------------
+        # ==================================
 
         response = await client.get(
             INDIA_SOURCE
@@ -53,7 +56,7 @@ async def load_company_catalog(
 
         data = yaml.safe_load(
             response.text
-        )
+        ) or {}
 
         for ats_type in [
             "greenhouse",
@@ -64,9 +67,12 @@ async def load_company_catalog(
             rows = data.get(
                 ats_type,
                 []
-            )
+            ) or []
 
             for row in rows:
+
+                if len(companies) >= limit:
+                    break
 
                 name = row.get("name")
                 token = row.get("slug")
@@ -74,15 +80,20 @@ async def load_company_catalog(
                 if not name or not token:
                     continue
 
-                key = (
-                    ats_type,
-                    token.lower(),
+                name = name.strip()
+                token = token.strip()
+
+                normalized_name = (
+                    name.lower()
                 )
 
-                if key in seen:
+                # Prevent same company name
+                # appearing under multiple ATS
+                if normalized_name in seen_names:
                     continue
 
                 if ats_type == "greenhouse":
+
                     url = (
                         "https://job-boards."
                         "greenhouse.io/"
@@ -90,130 +101,169 @@ async def load_company_catalog(
                     )
 
                 elif ats_type == "lever":
+
                     url = (
                         "https://jobs.lever.co/"
                         f"{token}"
                     )
 
-                else:
+                elif ats_type == "ashby":
+
                     url = (
-                        "https://jobs.ashbyhq.com/"
+                        "https://jobs."
+                        "ashbyhq.com/"
                         f"{token}"
                     )
 
+                else:
+                    continue
+
                 companies.append(
                     make_company(
-                        name,
-                        ats_type,
-                        token,
-                        url,
+                        name=name,
+                        ats_type=ats_type,
+                        token=token,
+                        career_url=url,
                     )
                 )
 
-                seen.add(key)
-
-        # ----------------------------------
-        # 2. GLOBAL TECH COMPANY CATALOG
-        # ----------------------------------
-
-        response = await client.get(
-            GLOBAL_SOURCE
-        )
-
-        response.raise_for_status()
-
-        reader = csv.DictReader(
-            io.StringIO(
-                response.text
-            )
-        )
-
-        ats_mapping = {
-            "Greenhouse": "greenhouse",
-            "Lever": "lever",
-            "Ashby": "ashby",
-            "SmartRecruiters":
-                "smartrecruiters",
-        }
-
-        for row in reader:
+                seen_names.add(
+                    normalized_name
+                )
 
             if len(companies) >= limit:
                 break
 
-            if (
-                row.get("verified", "")
-                .lower()
-                != "true"
-            ):
-                continue
+        # ==================================
+        # 2. GLOBAL TECH COMPANY CATALOG
+        # ==================================
 
-            source_ats = row.get(
-                "ats_system",
-                ""
+        if len(companies) < limit:
+
+            response = await client.get(
+                GLOBAL_SOURCE
             )
 
-            ats_type = ats_mapping.get(
-                source_ats
-            )
+            response.raise_for_status()
 
-            if not ats_type:
-                continue
-
-            name = row.get("name")
-            token = row.get("slug")
-
-            if not name or not token:
-                continue
-
-            key = (
-                ats_type,
-                token.lower(),
-            )
-
-            if key in seen:
-                continue
-
-            if ats_type == "greenhouse":
-
-                url = (
-                    "https://job-boards."
-                    "greenhouse.io/"
-                    f"{token}"
-                )
-
-            elif ats_type == "lever":
-
-                url = (
-                    "https://jobs.lever.co/"
-                    f"{token}"
-                )
-
-            elif ats_type == "ashby":
-
-                url = (
-                    "https://jobs."
-                    "ashbyhq.com/"
-                    f"{token}"
-                )
-
-            else:
-
-                url = (
-                    "https://careers."
-                    "smartrecruiters.com/"
-                    f"{token}"
-                )
-
-            companies.append(
-                make_company(
-                    name,
-                    ats_type,
-                    token,
-                    url,
+            reader = csv.DictReader(
+                io.StringIO(
+                    response.text
                 )
             )
 
-            seen.add(key)
+            ats_mapping = {
+                "Greenhouse":
+                    "greenhouse",
+
+                "Lever":
+                    "lever",
+
+                "Ashby":
+                    "ashby",
+
+                "SmartRecruiters":
+                    "smartrecruiters",
+            }
+
+            for row in reader:
+
+                if len(companies) >= limit:
+                    break
+
+                verified = (
+                    row.get(
+                        "verified",
+                        ""
+                    )
+                    .strip()
+                    .lower()
+                )
+
+                if verified != "true":
+                    continue
+
+                source_ats = (
+                    row.get(
+                        "ats_system",
+                        ""
+                    )
+                    .strip()
+                )
+
+                ats_type = (
+                    ats_mapping.get(
+                        source_ats
+                    )
+                )
+
+                if not ats_type:
+                    continue
+
+                name = row.get("name")
+                token = row.get("slug")
+
+                if not name or not token:
+                    continue
+
+                name = name.strip()
+                token = token.strip()
+
+                normalized_name = (
+                    name.lower()
+                )
+
+                # IMPORTANT:
+                # Deduplicate by company name,
+                # not by ATS/token
+                if normalized_name in seen_names:
+                    continue
+
+                if ats_type == "greenhouse":
+
+                    url = (
+                        "https://job-boards."
+                        "greenhouse.io/"
+                        f"{token}"
+                    )
+
+                elif ats_type == "lever":
+
+                    url = (
+                        "https://jobs.lever.co/"
+                        f"{token}"
+                    )
+
+                elif ats_type == "ashby":
+
+                    url = (
+                        "https://jobs."
+                        "ashbyhq.com/"
+                        f"{token}"
+                    )
+
+                elif ats_type == "smartrecruiters":
+
+                    url = (
+                        "https://careers."
+                        "smartrecruiters.com/"
+                        f"{token}"
+                    )
+
+                else:
+                    continue
+
+                companies.append(
+                    make_company(
+                        name=name,
+                        ats_type=ats_type,
+                        token=token,
+                        career_url=url,
+                    )
+                )
+
+                seen_names.add(
+                    normalized_name
+                )
 
     return companies[:limit]
