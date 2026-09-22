@@ -1,0 +1,18 @@
+name: Job Radar Scheduled Scan
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Job Radar scan
+        run: |
+          curl --fail --show-error --silent \
+            -X POST \
+            "${{ secrets.JOB_RADAR_SCAN_URL }}"
