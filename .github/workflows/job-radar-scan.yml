@@ -26,9 +26,8 @@ jobs:
     steps:
       - name: Scan company batch
         run: |
-          curl --fail \
+          curl --fail-with-body \
                --show-error \
-               --silent \
                --max-time 600 \
                -X POST \
                "${{ secrets.JOB_RADAR_SCAN_URL }}?batch=${{ matrix.batch }}&batch_size=25"
